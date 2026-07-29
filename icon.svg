@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="AgriCare">
+  <rect width="512" height="512" rx="112" fill="#143c2c"/>
+  <circle cx="256" cy="256" r="172" fill="#f3f6f1"/>
+  <path d="M259 386c-7-83 8-151 47-205" fill="none" stroke="#143c2c" stroke-width="24" stroke-linecap="round"/>
+  <path d="M286 226c-75-4-119-41-126-108 73 2 119 39 126 108Z" fill="#2f6c4e"/>
+  <path d="M298 282c63-5 103-37 116-94-64 2-104 33-116 94Z" fill="#66a879"/>
+  <path d="M250 332c-57-4-94-32-108-83 58 2 95 30 108 83Z" fill="#8bc69b"/>
+</svg>
