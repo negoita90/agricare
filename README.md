@@ -11,3 +11,6 @@ Pubblicare la root del repository con GitHub Pages, quindi aprire il sito in Saf
 - guide di potatura con link video
 - registro lavori salvato in localStorage
 - manifest e service worker per installazione PWA/offline
+
+## Pubblicazione
+Deploy automatico tramite GitHub Actions su GitHub Pages.
