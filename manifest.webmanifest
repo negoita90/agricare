@@ -1,0 +1,19 @@
+{
+  "name": "AgriCare - Assistente agricolo",
+  "short_name": "AgriCare",
+  "description": "Gestione mobile di frutteto, vite, trattamenti, potature e registro lavori.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f3f6f1",
+  "theme_color": "#143c2c",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
