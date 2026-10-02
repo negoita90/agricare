@@ -1,0 +1,142 @@
+name: Build Chuwi Hi10 Pro Bliss kernel
+
+on:
+  push:
+    branches:
+      - chuwi-hi10pro-kernel
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential clang flex git libelf-dev libssl-dev \
+            lld llvm make python3 rsync dwarves zstd
+
+      - name: Clone Gloria kernel
+        run: |
+          git clone --branch gloria https://github.com/hmtheboy154/Darkmatter-kernel.git kernel
+          cd kernel
+          git submodule update --init --recursive || true
+
+      - name: Select the last Gloria commit with Linux 6.1.112
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd kernel
+          target=""
+          while read -r commit; do
+            makefile="$(git show "$commit":Makefile 2>/dev/null || true)"
+            version="$(printf '%s\n' "$makefile" | awk '/^VERSION =/{print $3; exit}')"
+            patchlevel="$(printf '%s\n' "$makefile" | awk '/^PATCHLEVEL =/{print $3; exit}')"
+            sublevel="$(printf '%s\n' "$makefile" | awk '/^SUBLEVEL =/{print $3; exit}')"
+            if [ "$version" = "6" ] && [ "$patchlevel" = "1" ] && [ "$sublevel" = "112" ]; then
+              target="$commit"
+              break
+            fi
+          done < <(git rev-list gloria -- Makefile)
+          test -n "$target"
+          echo "Using source commit: $target"
+          git checkout "$target"
+          echo "$target" > ../SOURCE_COMMIT.txt
+          printf 'VERSION INFO:\n'
+          head -n 6 Makefile
+          printf 'LOCALVERSION:\n'
+          cat localversion || true
+
+      - name: Patch CWI529 alternate DMI strings
+        run: |
+          cd kernel
+          python3 - <<'PY'
+          from pathlib import Path
+
+          touch = Path("drivers/platform/x86/touchscreen_dmi.c")
+          s = touch.read_text()
+
+          old = '''\t{
+\t\t/* Chuwi Hi10 Pro (CWI529) */
+\t\t.driver_data = (void *)&chuwi_hi10_pro_data,
+\t\t.matches = {
+\t\t\tDMI_MATCH(DMI_BOARD_VENDOR, "Hampoo"),
+\t\t\tDMI_MATCH(DMI_PRODUCT_NAME, "Hi10 pro tablet"),
+\t\t\tDMI_MATCH(DMI_BOARD_NAME, "Cherry Trail CR"),
+\t\t},
+\t},
+'''
+          new = old + '''\t{
+\t\t/* Chuwi Hi10 Pro (CWI529) - alternate Hampoo DMI strings */
+\t\t.driver_data = (void *)&chuwi_hi10_pro_data,
+\t\t.matches = {
+\t\t\tDMI_MATCH(DMI_SYS_VENDOR, "Hampoo"),
+\t\t\tDMI_MATCH(DMI_PRODUCT_NAME, "I1D6_C109S_Hi10Pro"),
+\t\t\tDMI_MATCH(DMI_BOARD_VENDOR, "Hampoo"),
+\t\t\tDMI_MATCH(DMI_BOARD_NAME, "Cherry Trail CR"),
+\t\t},
+\t},
+'''
+          if old not in s:
+              raise SystemExit("Touchscreen Hi10 Pro DMI anchor not found")
+          touch.write_text(s.replace(old, new, 1))
+
+          orient = Path("drivers/gpu/drm/drm_panel_orientation_quirks.c")
+          s = orient.read_text()
+          old = '''\t}, {\t/* Chuwi Hi10 Pro (CWI529) */
+\t\t.matches = {
+\t\t  DMI_EXACT_MATCH(DMI_BOARD_VENDOR, "Hampoo"),
+\t\t  DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "Hi10 pro tablet"),
+\t\t},
+\t\t.driver_data = (void *)&lcd1200x1920_rightside_up,
+'''
+          new = old + '''\t}, {\t/* Chuwi Hi10 Pro (CWI529) - alternate Hampoo DMI strings */
+\t\t.matches = {
+\t\t  DMI_EXACT_MATCH(DMI_SYS_VENDOR, "Hampoo"),
+\t\t  DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "I1D6_C109S_Hi10Pro"),
+\t\t  DMI_EXACT_MATCH(DMI_BOARD_NAME, "Cherry Trail CR"),
+\t\t},
+\t\t.driver_data = (void *)&lcd1200x1920_rightside_up,
+'''
+          if old not in s:
+              raise SystemExit("Panel orientation Hi10 Pro DMI anchor not found")
+          orient.write_text(s.replace(old, new, 1))
+          PY
+
+          git diff --check
+          git diff > ../chuwi-hi10pro-cwi529.patch
+          cat ../chuwi-hi10pro-cwi529.patch
+
+      - name: Configure kernel
+        run: |
+          cd kernel
+          make LLVM=1 LLVM_IAS=1 android-x86_64_defconfig
+          grep -E 'CONFIG_TOUCHSCREEN_SILEAD|CONFIG_TOUCHSCREEN_DMI|CONFIG_DRM' .config | head -n 50 || true
+
+      - name: Build bzImage
+        run: |
+          cd kernel
+          make -j"$(nproc)" LLVM=1 LLVM_IAS=1 bzImage
+          make LLVM=1 LLVM_IAS=1 kernelrelease | tee ../KERNEL_RELEASE.txt
+          cp arch/x86/boot/bzImage ../kernel-chuwi-hi10pro-cwi529
+
+      - name: Verify artifact
+        run: |
+          ls -lh kernel-chuwi-hi10pro-cwi529 chuwi-hi10pro-cwi529.patch SOURCE_COMMIT.txt KERNEL_RELEASE.txt
+          sha256sum kernel-chuwi-hi10pro-cwi529 | tee SHA256SUMS.txt
+
+      - name: Upload patched kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: chuwi-hi10pro-cwi529-kernel
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            kernel-chuwi-hi10pro-cwi529
+            chuwi-hi10pro-cwi529.patch
+            SOURCE_COMMIT.txt
+            KERNEL_RELEASE.txt
+            SHA256SUMS.txt
