@@ -42,7 +42,9 @@ jobs:
       - name: Configure kernel
         run: |
           cd kernel
-          make LLVM=-17 LLVM_IAS=1 android-x86_64_defconfig
+          curl -fsSL https://raw.githubusercontent.com/hmtheboy154/Darkmatter-kernel/gloria/arch/x86/configs/android-x86_64_defconfig -o .config
+          printf '%s\n' '-gloria-xanmod1' > localversion
+          make LLVM=-17 LLVM_IAS=1 olddefconfig
           grep -E 'CONFIG_TOUCHSCREEN_SILEAD|CONFIG_TOUCHSCREEN_DMI|CONFIG_DRM' .config | head -n 50 || true
 
       - name: Build bzImage
