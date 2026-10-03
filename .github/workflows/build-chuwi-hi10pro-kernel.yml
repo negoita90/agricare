@@ -39,35 +39,47 @@ jobs:
           git diff > ../chuwi-hi10pro-cwi529.patch
           cat ../chuwi-hi10pro-cwi529.patch
 
+      - name: Integrate KernelSU v0.9.5
+        run: |
+          cd kernel
+          curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/v0.9.5/kernel/setup.sh | bash -s v0.9.5
+          test -d KernelSU
+          git -C KernelSU describe --tags --always
+
       - name: Configure kernel
         run: |
           cd kernel
           curl -fsSL https://raw.githubusercontent.com/hmtheboy154/Darkmatter-kernel/gloria/arch/x86/configs/android-x86_64_defconfig -o .config
           printf '%s\n' '-gloria-xanmod1' > localversion
+          scripts/config --enable KSU
+          scripts/config --enable KPROBES
+          scripts/config --enable HAVE_KPROBES
+          scripts/config --enable KPROBE_EVENTS
           make LLVM=-17 LLVM_IAS=1 olddefconfig
-          grep -E 'CONFIG_TOUCHSCREEN_SILEAD|CONFIG_TOUCHSCREEN_DMI|CONFIG_DRM' .config | head -n 50 || true
+          grep -E 'CONFIG_KSU|CONFIG_KPROBES|CONFIG_HAVE_KPROBES|CONFIG_KPROBE_EVENTS|CONFIG_TOUCHSCREEN_SILEAD|CONFIG_TOUCHSCREEN_DMI|CONFIG_DRM' .config | head -n 80 || true
+          grep -q '^CONFIG_KSU=y' .config
 
       - name: Build bzImage
         run: |
           cd kernel
           make -j"$(nproc)" LLVM=-17 LLVM_IAS=1 bzImage
           make LLVM=-17 LLVM_IAS=1 kernelrelease | tee ../KERNEL_RELEASE.txt
-          cp arch/x86/boot/bzImage ../kernel-chuwi-hi10pro-cwi529
+          cp arch/x86/boot/bzImage ../kernel-chuwi-hi10pro-cwi529-ksu095
           echo fcfc7a6d64c876910e5102d6c41cd4d61cd3e418 > ../SOURCE_COMMIT.txt
 
       - name: Verify artifact
         run: |
-          ls -lh kernel-chuwi-hi10pro-cwi529 chuwi-hi10pro-cwi529.patch SOURCE_COMMIT.txt KERNEL_RELEASE.txt
-          sha256sum kernel-chuwi-hi10pro-cwi529 | tee SHA256SUMS.txt
+          ls -lh kernel-chuwi-hi10pro-cwi529-ksu095 chuwi-hi10pro-cwi529.patch SOURCE_COMMIT.txt KERNEL_RELEASE.txt
+          sha256sum kernel-chuwi-hi10pro-cwi529-ksu095 | tee SHA256SUMS.txt
 
       - name: Upload patched kernel
         uses: actions/upload-artifact@v4
         with:
-          name: chuwi-hi10pro-cwi529-kernel
+          name: chuwi-hi10pro-cwi529-ksu095-kernel
           if-no-files-found: error
           retention-days: 14
           path: |
-            kernel-chuwi-hi10pro-cwi529
+            kernel-chuwi-hi10pro-cwi529-ksu095
             chuwi-hi10pro-cwi529.patch
             SOURCE_COMMIT.txt
             KERNEL_RELEASE.txt
